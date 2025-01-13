@@ -54,17 +54,67 @@ Author: matianfu@gingerologist.com
 3. 需要Hold住Power键保证MCU供电；
 4. 通过nRF Connect的Flash工具下载程序，记得第一次使用应在命令行里执行一次`nrfjprog -e`命令擦除内置的配置寄存器，否则诸如NFC，RESET PIN的设置会受影响，在工程里配置的编译选项不会生效；
 
+```
+C:\Users\matia>nrfjprog -e
+Erasing user available code and UICR flash areas.
+Applying system reset.
+```
+
+
+
+### 2023-11-2
+
+#### 片上设备资源分配
+
+nRF52840有三个通道可配置的同步串行设备，每个通道可配置为SPI或者I2C。如果设备更多也可以共享通道，使用SDK里的manager库，manager库可以用一个片上控制器轮询外设，包括每次通讯时需要重新配置管脚的情况。本项目中加速度计和LCD屏幕使用同一个twi实例。
+
+QSPI是独立片上资源，与SPI/TWI无关。
+
+片上设备资源使用：
+
+- `TWI0` - QMA6100P + LCD
+- `SPI1` - ADS1292R
+- `SPI2` - MAX86141
+- `QSPI` - Flash (not used)
+- `SAADC` - Battery Level (with timer)
+- `GPIOTE` - Power Button, LED
+- `USB` - USB-CDC
 
 
 
 
 
-
-
-
-
-
-
-
-
-
+| 序号 | 模块               | MCU管脚             | MCU资源                    |
+| ---- | ------------------ | ------------------- | -------------------------- |
+| 1    | ECG:ADS1292R       | ADS-DI-P0.01        | SPI instance id 1          |
+|      |                    | ADS-CLK-P0.26       |                            |
+|      |                    | ADS-DO-P0.27        |                            |
+|      |                    | ADS-CS-P1.13        |                            |
+|      |                    | ADS-DRY-P1.10       |                            |
+| 2    | 加速度计：QMA6100P | QMA-SDA-P0.06       | TWI instance id 0 (shared) |
+|      |                    | QMA-SCL-P0.07       |                            |
+|      |                    | QMA-INT1-P0.08      |                            |
+| 3    | 温度：M601Z        | M-INT-P0.31         |                            |
+|      |                    | M-DQ-P0.00          |                            |
+|      |                    | P0.04               |                            |
+| 4    | LCD屏幕            | RES-P0.11           | TWI instance id 0 (shared) |
+|      |                    | D0-SCL-P0.12        |                            |
+|      |                    | D1D2-SDA-P1.09      |                            |
+| 5    | 血氧血压/MAX86141  | MAX-INT-P0.24       | SPI instance id 2          |
+|      |                    | MAX-SCLK-P0.14      |                            |
+|      |                    | MAX-SDO-P0.13       |                            |
+|      |                    | MAX-SDI-P0.15       |                            |
+|      |                    | MAX-CS-P0.17        |                            |
+| 6    | FLASH              | QSPI-CS-P0.18/RESET | QSPI                       |
+|      |                    | QSPI-DQ1-P0.22      |                            |
+|      |                    | QSPI-DQ2-P0.23      |                            |
+|      |                    | QSPI-DQ3-P1.00      |                            |
+|      |                    | QSPI-DQ0-P0.21      |                            |
+| 7    | 锂电池检测         | VADC-P0.28/AIN4     | SAADC 1 Channel            |
+| 8    | 开机使能键         | POWER-ON-P0.29      | GPIO(TE)                   |
+| 9    | 关机检测管脚       | POWEROFF-DET-P0.02  | GPIO(TE), Debounce         |
+| 10   | USB调试口          | D-                  | USB-CDC                    |
+|      |                    | D+                  |                            |
+| 11   | LED系统指示灯      | LED-P1.04           | GPIO(TE)                   |
+| 12   | 程序调试           | SWDIO               | Debug                      |
+|      |                    | SWDCLK              |                            |
